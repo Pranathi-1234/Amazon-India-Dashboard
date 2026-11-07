@@ -6,7 +6,7 @@ An interactive management dashboard built from `Amazon_Sales_Data_India.xlsx` (1
 ## Folder contents
 | File | Purpose |
 |---|---|
-| `data/Amazon_Sales_Data_India.xlsx` | Source data (unchanged) |
+| `Amazon_Sales_Data_India.xlsx` | Source data (unchanged) |
 | `build_dashboard.py` | Reads the Excel file, checks data quality, builds the dashboard |
 | `template.html` | Dashboard design, charts and filter logic (HTML, CSS, JavaScript) |
 | `Amazon_India_Dashboard.html` | **The finished dashboard.** One file, works offline |
