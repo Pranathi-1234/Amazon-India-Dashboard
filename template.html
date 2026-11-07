@@ -1,0 +1,600 @@
+<title>Amazon India Sales Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one scrolling report. Title bar, sticky filter bar, then four sections that follow the project brief
+   (overall, category and product, order status, payment / fulfilment / geography). Each section opens with the
+   business question and closes with an auto-written insight computed from the filtered data. */
+:root{
+  --bg:#f2f5f9; --surface:#ffffff; --surface-2:#f6f8fb; --ink:#111a27; --ink-2:#465163; --muted:#6f7a8a;
+  --line:#e2e8f0; --grid:#e8edf4; --accent:#1c5cab; --accent-ink:#ffffff; --hover:#eef3fa;
+  --sales:#2a78d6; --profit:#eb6834; --units:#1baf7a; --orders:#6250d6; --margin:#1baf7a;
+  --st-delivered:#1baf7a; --st-shipped:#6250d6; --st-returned:#eda100; --st-cancelled:#e34948;
+  --seq-lo:#cde2fb; --seq-hi:#104281; --shadow:0 1px 2px rgba(17,26,39,.05);
+  --font:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e131a; --surface:#171e28; --surface-2:#1c2431; --ink:#eaeef4; --ink-2:#b4bdc9; --muted:#8893a2;
+  --line:#2a3340; --grid:#232c38; --accent:#5598e7; --accent-ink:#0e131a; --hover:#212b39;
+  --sales:#3987e5; --profit:#d95926; --units:#199e70; --orders:#9085e9; --margin:#199e70;
+  --st-delivered:#199e70; --st-shipped:#9085e9; --st-returned:#c98500; --st-cancelled:#e66767;
+  --seq-lo:#22384f; --seq-hi:#86b6ef; --shadow:none; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0e131a; --surface:#171e28; --surface-2:#1c2431; --ink:#eaeef4; --ink-2:#b4bdc9; --muted:#8893a2;
+  --line:#2a3340; --grid:#232c38; --accent:#5598e7; --accent-ink:#0e131a; --hover:#212b39;
+  --sales:#3987e5; --profit:#d95926; --units:#199e70; --orders:#9085e9; --margin:#199e70;
+  --st-delivered:#199e70; --st-shipped:#9085e9; --st-returned:#c98500; --st-cancelled:#e66767;
+  --seq-lo:#22384f; --seq-hi:#86b6ef; --shadow:none; color-scheme:dark;}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--bg)}
+.wrap{max-width:1320px;margin:0 auto}
+h1,h2,h3,p{margin:0}
+button,select{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+
+/* title bar */
+.top{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:22px 0 14px}
+.top h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+.top .sub{color:var(--ink-2);margin-top:3px;font-size:13px}
+.tbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.tbtn:hover{background:var(--hover)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* filter bar */
+.filters{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
+  padding:12px 14px;display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;z-index:50}
+@media (min-width:900px){.filters{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px)}}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label,.f .lab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.f select{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px 28px 7px 10px;min-width:118px;max-width:100%}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.seg button{border:0;background:transparent;padding:7px 12px;cursor:pointer;color:var(--ink-2)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg button:not([aria-pressed="true"]):hover{background:var(--hover)}
+.reset{margin-left:auto;border:1px solid var(--line);background:transparent;border-radius:8px;padding:7px 14px;cursor:pointer;color:var(--ink-2)}
+.reset:hover{background:var(--hover)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;min-height:0}
+.chip{display:inline-flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 12px;font-size:12px;color:var(--ink-2)}
+.chip b{color:var(--ink);font-weight:600}
+.chip button{border:0;background:var(--surface-2);border-radius:50%;width:20px;height:20px;line-height:18px;cursor:pointer;color:var(--ink-2);padding:0}
+.chip button:hover{background:var(--hover)}
+
+/* sections */
+section{margin-top:34px}
+.sh{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.sh .tag{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+.sh h2{font-size:19px;font-weight:700;letter-spacing:-.005em}
+.sh p{color:var(--ink-2)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(12,minmax(0,1fr))}
+.k4{grid-column:span 4}.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}
+@media (max-width:1000px){.c8,.c7,.c6,.c5,.c4{grid-column:span 12}.c3,.k4{grid-column:span 6}}
+@media (max-width:560px){.c3{grid-column:span 12}.k4{grid-column:span 6}.kpi .v{font-size:22px}.f select{min-width:0;width:100%}.f{flex:1 1 140px}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.card h3{font-size:14px;font-weight:600}
+.card .hint{color:var(--muted);font-size:12px;margin-top:2px}
+.chead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin:6px 0 2px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.insight{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:11px 14px;color:var(--ink-2)}
+.insight b{color:var(--ink)}
+
+/* KPI tiles */
+.kpi{display:flex;flex-direction:column;gap:2px;justify-content:space-between}
+.kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.kpi .v{font-size:27px;font-weight:700;letter-spacing:-.02em;margin-top:6px}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi.sales .v{color:var(--sales)}.kpi.profit .v{color:var(--profit)}
+.kpi .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.stt{border-top:3px solid var(--c);}
+.stt .v{font-size:25px}
+
+/* bar lists */
+.blist{display:flex;flex-direction:column;gap:11px;margin-top:10px}
+.brow{display:grid;grid-template-columns:minmax(90px,34%) 1fr;gap:10px;align-items:center;border-radius:6px;padding:3px 4px;margin:-3px -4px}
+.brow.click{cursor:pointer}
+.brow.click:hover{background:var(--hover)}
+.brow.sel{background:var(--hover);outline:1px solid var(--line)}
+.blabel{font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.bbars{display:flex;flex-direction:column;gap:4px;min-width:0}
+.bline{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.btrack{height:10px;border-radius:0 4px 4px 0;min-width:0}
+.bfill{height:100%;border-radius:0 4px 4px 0;min-width:2px}
+.bval{font-size:12px;color:var(--ink-2);text-align:right;white-space:nowrap;min-width:64px}
+@media (max-width:560px){.brow{grid-template-columns:1fr;gap:4px}}
+.empty{color:var(--muted);padding:26px 0;text-align:center}
+
+/* chart + tooltip */
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.ax{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.gl{stroke:var(--grid);stroke-width:1}
+.tip{position:fixed;z-index:80;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 22px rgba(10,18,30,.18);max-width:260px;display:none}
+.tip .t{font-weight:600;margin-bottom:4px}
+.tip .r{display:flex;justify-content:space-between;gap:14px}
+.tip .r span:first-child{color:var(--ink-2)}
+.tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.hov{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  font-size:12px;box-shadow:0 6px 22px rgba(10,18,30,.18);min-width:150px;display:none;z-index:5}
+.hov .t{font-weight:600;margin-bottom:4px}
+.hov .r{display:flex;justify-content:space-between;gap:14px}
+.hov .r span:first-child{color:var(--ink-2)}
+.hov i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+
+/* donut */
+.donutwrap{display:grid;grid-template-columns:minmax(150px,210px) 1fr;gap:18px;align-items:center}
+@media (max-width:560px){.donutwrap{grid-template-columns:1fr}}
+.dleg{display:flex;flex-direction:column;gap:2px;font-size:13px}
+.dleg .row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:6px 6px;border-radius:6px;cursor:pointer}
+.dleg .row:hover,.dleg .row.sel{background:var(--hover)}
+.dleg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.dleg .pc{color:var(--muted);min-width:44px;text-align:right}
+
+/* tile map */
+.mapgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:minmax(54px,auto);gap:6px;margin-top:10px}
+.tile{border-radius:8px;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:6px 2px;cursor:pointer;text-align:center;min-width:0;line-height:1.2}
+.tile .ab{font-weight:700;font-size:14px}
+.tile .tv{font-size:11px;opacity:.95}
+.tile.sel{border-color:var(--ink)}
+.tile.off{background:transparent;border:0;cursor:default;pointer-events:none}
+.ramp{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-top:10px}
+.ramp .bar{flex:0 0 140px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--seq-lo),var(--seq-hi))}
+.mtabs{display:flex;gap:6px;flex-wrap:wrap}
+.mtabs button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:12px;color:var(--ink-2)}
+.mtabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+
+/* tables */
+.tw{overflow-x:auto;max-height:340px;overflow-y:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{position:sticky;top:0;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+th.nosort{cursor:default}
+tr:hover td{background:var(--hover)}
+.foot{margin-top:34px;color:var(--muted);font-size:12px;display:grid;gap:6px;max-width:980px}
+.foot b{color:var(--ink-2)}
+.nodata{display:none;margin-top:14px;padding:14px;border:1px dashed var(--line);border-radius:10px;color:var(--ink-2);text-align:center}
+</style>
+<!--BODY-->
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Amazon India Sales Dashboard</h1>
+      <p class="sub" id="caption"></p>
+    </div>
+    <button class="tbtn" id="theme" type="button" aria-label="Switch between light and dark theme">Switch theme</button>
+  </header>
+
+  <div class="filters" id="filters" role="group" aria-label="Dashboard filters">
+    <div class="f"><span class="lab">Period</span>
+      <div class="seg" id="presets"></div></div>
+    <div class="f"><label for="fFrom">From</label><select id="fFrom"></select></div>
+    <div class="f"><label for="fTo">To</label><select id="fTo"></select></div>
+    <div class="f"><label for="fCat">Category</label><select id="fCat"></select></div>
+    <div class="f"><label for="fStatus">Order status</label><select id="fStatus"></select></div>
+    <div class="f"><label for="fPay">Payment</label><select id="fPay"></select></div>
+    <div class="f"><label for="fFul">Fulfilment</label><select id="fFul"></select></div>
+    <div class="f"><label for="fState">State</label><select id="fState"></select></div>
+    <button class="reset" id="reset" type="button">Reset filters</button>
+  </div>
+  <div class="chips" id="chips" aria-live="polite"></div>
+  <div class="nodata" id="nodata">No orders match this combination of filters. Use Reset filters to start again.</div>
+
+  <main id="main">
+  <!-- 1 -->
+  <section id="s1">
+    <div class="sh"><span class="tag">1 · Overall performance</span><h2>How is the business performing overall?</h2></div>
+    <div class="grid" id="kpis"></div>
+    <div class="card" style="margin-top:14px">
+      <div class="chead">
+        <div><h3>Monthly trend</h3><p class="hint" id="trendHint"></p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <div class="mtabs" id="trendTabs"></div>
+          <div class="mtabs" id="trendView"></div>
+        </div>
+      </div>
+      <div class="legend" id="trendLegend"></div>
+      <div class="chart" id="trend"></div>
+      <div class="tw" id="trendTable" hidden></div>
+    </div>
+    <p class="insight" id="in1"></p>
+  </section>
+
+  <!-- 2 -->
+  <section id="s2">
+    <div class="sh"><span class="tag">2 · Category and product performance</span><h2>Which products and categories are driving the business?</h2></div>
+    <div class="grid">
+      <div class="card c4"><h3>Sales by category</h3><p class="hint">Click a bar to filter the whole dashboard</p><div class="blist" id="catSales"></div></div>
+      <div class="card c4"><h3>Profit by category</h3><p class="hint">Profit is zero on cancelled and returned orders</p><div class="blist" id="catProfit"></div></div>
+      <div class="card c4"><h3>Units sold by category</h3><p class="hint">Total quantity across orders</p><div class="blist" id="catUnits"></div></div>
+      <div class="card c7"><h3>Top 10 products by sales</h3><p class="hint">Bar shows sales. Figures show sales, units and profit margin</p><div class="blist" id="topProd"></div></div>
+      <div class="card c5"><h3>Products that need attention</h3><p class="hint">The five lowest profit margins in this view</p><div class="tw" style="max-height:none" id="lowProd"></div></div>
+    </div>
+    <p class="insight" id="in2"></p>
+  </section>
+
+  <!-- 3 -->
+  <section id="s3">
+    <div class="sh"><span class="tag">3 · Order status and revenue loss</span><h2>How many orders are completed and how many are being lost?</h2></div>
+    <div class="grid" id="statusTiles"></div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card c5"><h3>Orders by status</h3><p class="hint">Click a status to filter</p>
+        <div class="donutwrap" style="margin-top:12px"><div class="chart" id="donut"></div><div class="dleg" id="donutLeg"></div></div></div>
+      <div class="card c7"><h3>Returns and cancellations by category</h3><p class="hint">Number of orders, with the share of that category's orders in brackets</p>
+        <div class="legend"><span><i style="background:var(--st-returned)"></i>Returned</span><span><i style="background:var(--st-cancelled)"></i>Cancelled</span></div>
+        <div class="blist" id="lossCat"></div></div>
+    </div>
+    <p class="insight" id="in3"></p>
+  </section>
+
+  <!-- 4 -->
+  <section id="s4">
+    <div class="sh"><span class="tag">4 · Payment, fulfilment and geography</span><h2>Which payment methods, fulfilment methods and states generate business?</h2></div>
+    <div class="grid">
+      <div class="card c6"><h3>Sales and profit by payment method</h3><p class="hint">Click a method to filter</p>
+        <div class="legend"><span><i style="background:var(--sales)"></i>Sales</span><span><i style="background:var(--profit)"></i>Profit</span></div>
+        <div class="blist" id="payBars"></div></div>
+      <div class="card c6"><h3>Sales and profit by fulfilment method</h3><p class="hint">Click a method to filter</p>
+        <div class="legend"><span><i style="background:var(--sales)"></i>Sales</span><span><i style="background:var(--profit)"></i>Profit</span></div>
+        <div class="blist" id="fulBars"></div></div>
+      <div class="card c6">
+        <div class="chead"><div><h3>State map</h3><p class="hint">Schematic tile map of the states in the data, not to scale. Click a tile to filter</p></div>
+          <div class="mtabs" id="mapTabs"></div></div>
+        <div class="mapgrid" id="mapgrid"></div>
+        <div class="ramp"><span id="rampLo"></span><span class="bar"></span><span id="rampHi"></span></div>
+      </div>
+      <div class="card c6"><h3 id="stateRankTitle">States ranked</h3><p class="hint">Same measure as the map</p><div class="blist" id="stateBars"></div></div>
+      <div class="card c12"><h3>State summary table</h3><p class="hint">Click a column heading to sort</p><div class="tw" id="stateTable"></div></div>
+    </div>
+    <p class="insight" id="in4"></p>
+  </section>
+  </main>
+
+  <div class="foot">
+    <p><b>Data.</b> <span id="footData"></span></p>
+    <p><b>How the numbers are worked out.</b> Total Sales is the sum of Total_Sales_INR for every order in view, whatever its status. Total Profit is the sum of Profit_INR. Orders is the count of Order_ID. Units Sold is the sum of Quantity. Average Order Value is Total Sales divided by Orders. Profit Margin is Total Profit divided by Total Sales. Return Rate and Cancellation Rate are returned or cancelled orders divided by all orders. Revenue Lost is the sales value of Cancelled and Returned orders.</p>
+    <p><b>Please note.</b> In the source file, Cancelled and Returned orders keep their sales value but carry zero profit. They are therefore included in Total Sales and shown separately as Revenue Lost, and they pull the profit margin down.</p>
+  </div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+(function(){
+'use strict';
+const D = DATA;
+const $ = s => document.querySelector(s);
+const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MNL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const INR = new Intl.NumberFormat('en-IN',{maximumFractionDigits:0});
+const fINR = v => '₹' + INR.format(Math.round(v));
+const trim = n => String(+(+n).toFixed(2));
+function fShort(v){const a=Math.abs(v); if(a>=1e7) return '₹'+(v/1e7).toFixed(2)+' Cr'; if(a>=1e5) return '₹'+(v/1e5).toFixed(2)+' L'; return fINR(v);}
+function fAx(v){ if(v===0) return '0'; const a=Math.abs(v); if(a>=1e7) return trim(v/1e7)+' Cr'; if(a>=1e5) return trim(v/1e5)+' L'; if(a>=1e3) return trim(v/1e3)+'K'; return trim(v); }
+const fPct = v => (v*100).toFixed(1)+'%';
+const fNum = v => INR.format(Math.round(v));
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const mLabel = i => { const [y,m]=D.months[i].split('-'); return MN[+m-1]+' '+y.slice(2); };
+const mLong = i => { const [y,m]=D.months[i].split('-'); return MNL[+m-1]+' '+y; };
+const nM = D.months.length;
+
+const IDX = {status:n=>D.statuses.indexOf(n)};
+const ST = {del:IDX.status('Delivered'), shp:IDX.status('Shipped'), ret:IDX.status('Returned'), can:IDX.status('Cancelled')};
+const STCOL = {[ST.del]:'--st-delivered',[ST.shp]:'--st-shipped',[ST.ret]:'--st-returned',[ST.can]:'--st-cancelled'};
+
+// rows: [month, category, product, qty, sales, profit, payment, fulfilment, status, state]
+const ROWS = D.rows.map(r=>({m:r[0],c:r[1],p:r[2],q:r[3],s:r[4],pr:r[5],pay:r[6],f:r[7],st:r[8],ss:r[9]}));
+
+/* ---------- state ---------- */
+const F = {from:0,to:nM-1,cat:-1,status:-1,pay:-1,ful:-1,state:-1};
+const UI = {tab:'sales',view:'chart',mapMetric:'sales',stateSort:{k:'sales',dir:-1}};
+function filtered(){
+  return ROWS.filter(r=> r.m>=F.from && r.m<=F.to && (F.cat<0||r.c===F.cat) && (F.status<0||r.st===F.status) &&
+    (F.pay<0||r.pay===F.pay) && (F.ful<0||r.f===F.ful) && (F.state<0||r.ss===F.state));
+}
+function agg(rows,keyOf,n){
+  const A=Array.from({length:n},()=>({orders:0,units:0,sales:0,profit:0,del:0,shp:0,ret:0,can:0,salesLost:0,salesDel:0}));
+  for(const r of rows){const a=A[keyOf(r)]; a.orders++; a.units+=r.q; a.sales+=r.s; a.profit+=r.pr;
+    if(r.st===ST.del){a.del++;a.salesDel+=r.s;} else if(r.st===ST.shp)a.shp++; else if(r.st===ST.ret){a.ret++;a.salesLost+=r.s;} else if(r.st===ST.can){a.can++;a.salesLost+=r.s;}}
+  return A;
+}
+const total = rows => agg(rows,()=>0,1)[0];
+
+/* ---------- tooltip ---------- */
+const tip = $('#tip');
+function showTip(e,html){tip.innerHTML=html;tip.style.display='block';
+  const pad=14,w=tip.offsetWidth,h=tip.offsetHeight; let x=e.clientX+pad,y=e.clientY+pad;
+  if(x+w>innerWidth-8)x=e.clientX-w-pad; if(y+h>innerHeight-8)y=e.clientY-h-pad; tip.style.left=Math.max(8,x)+'px'; tip.style.top=Math.max(8,y)+'px';}
+const hideTip = ()=>{tip.style.display='none';};
+const trow = (name,val,col)=>`<div class="r"><span>${col?`<i style="background:var(${col})"></i>`:''}${name}</span><span class="num"><b>${val}</b></span></div>`;
+
+/* ---------- filters UI ---------- */
+function fillSelect(id,all,list){ $(id).innerHTML=`<option value="-1">${all}</option>`+list.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join(''); }
+fillSelect('#fCat','All categories',D.cats);
+fillSelect('#fStatus','All statuses',D.statuses);
+fillSelect('#fPay','All methods',D.pays);
+fillSelect('#fFul','All methods',D.fuls);
+fillSelect('#fState','All states',D.states);
+const monthOpts = D.months.map((_,i)=>`<option value="${i}">${mLong(i)}</option>`).join('');
+$('#fFrom').innerHTML=monthOpts; $('#fTo').innerHTML=monthOpts;
+const years=[...new Set(D.months.map(m=>m.slice(0,4)))];
+const presetDefs=[{label:'All time',from:0,to:nM-1},...years.map(y=>{const ix=D.months.map((m,i)=>m.startsWith(y)?i:-1).filter(i=>i>=0);
+  return {label:y,from:ix[0],to:ix[ix.length-1]};})];
+$('#presets').innerHTML=presetDefs.map((p,i)=>`<button type="button" data-i="${i}" aria-pressed="false">${p.label}</button>`).join('');
+$('#presets').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b)return; const p=presetDefs[+b.dataset.i]; F.from=p.from;F.to=p.to; sync(); render();});
+$('#fFrom').onchange=e=>{F.from=+e.target.value; if(F.from>F.to)F.to=F.from; sync(); render();};
+$('#fTo').onchange=e=>{F.to=+e.target.value; if(F.to<F.from)F.from=F.to; sync(); render();};
+[['#fCat','cat'],['#fStatus','status'],['#fPay','pay'],['#fFul','ful'],['#fState','state']].forEach(([id,k])=>{$(id).onchange=e=>{F[k]=+e.target.value;sync();render();};});
+$('#reset').onclick=()=>{Object.assign(F,{from:0,to:nM-1,cat:-1,status:-1,pay:-1,ful:-1,state:-1});sync();render();};
+function toggle(k,i){F[k]=F[k]===i?-1:i; sync(); render();}
+function sync(){
+  $('#fFrom').value=F.from;$('#fTo').value=F.to;$('#fCat').value=F.cat;$('#fStatus').value=F.status;$('#fPay').value=F.pay;$('#fFul').value=F.ful;$('#fState').value=F.state;
+  [...$('#presets').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(presetDefs[i].from===F.from&&presetDefs[i].to===F.to)));
+  const chips=[];
+  if(!(F.from===0&&F.to===nM-1)) chips.push(['Period',mLong(F.from)+(F.from===F.to?'':' to '+mLong(F.to)),'range']);
+  [['Category','cat',D.cats],['Status','status',D.statuses],['Payment','pay',D.pays],['Fulfilment','ful',D.fuls],['State','state',D.states]].forEach(([l,k,list])=>{if(F[k]>=0)chips.push([l,list[F[k]],k]);});
+  $('#chips').innerHTML=chips.map(c=>`<span class="chip">${c[0]}: <b>${esc(c[1])}</b><button type="button" data-k="${c[2]}" aria-label="Remove ${c[0]} filter">×</button></span>`).join('');
+}
+$('#chips').addEventListener('click',e=>{const b=e.target.closest('button'); if(!b)return; const k=b.dataset.k; if(k==='range'){F.from=0;F.to=nM-1;} else F[k]=-1; sync(); render();});
+$('#theme').onclick=()=>{const dark=matchMedia('(prefers-color-scheme: dark)').matches; const cur=document.documentElement.dataset.theme||(dark?'dark':'light');
+  document.documentElement.dataset.theme=cur==='dark'?'light':'dark'; render();};
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>render());
+
+/* ---------- helpers: bars ---------- */
+function bars(el,items,o){
+  if(!items.length){el.innerHTML='<div class="empty">No data for this selection</div>';return;}
+  const max=Math.max(...items.flatMap(i=>i.vals),1e-9);
+  el.innerHTML=items.map(it=>`<div class="brow ${o.key?'click':''} ${o.sel!=null&&o.sel===it.key?'sel':''}" data-key="${it.key}">
+    <div class="blabel" title="${esc(it.label)}">${esc(it.label)}</div>
+    <div class="bbars">${it.vals.map((v,j)=>`<div class="bline"><div class="btrack"><div class="bfill" style="width:${Math.max(0,v/max*100)}%;background:var(${o.series[j].col})"></div></div><span class="bval num">${it.txt?it.txt[j]:o.fmt(v)}</span></div>`).join('')}</div></div>`).join('');
+  el.onmousemove=e=>{const r=e.target.closest('.brow'); if(!r){hideTip();return;} const it=items.find(i=>String(i.key)===r.dataset.key); if(it&&it.tip)showTip(e,it.tip);};
+  el.onmouseleave=hideTip;
+  el.onclick=o.key?e=>{const r=e.target.closest('.brow'); if(r){hideTip();toggle(o.key,+r.dataset.key);}}:null;
+}
+
+/* ---------- section 1 ---------- */
+function monthly(rows){
+  const a=Array.from({length:F.to-F.from+1},()=>({orders:0,units:0,sales:0,profit:0}));
+  for(const r of rows){const x=a[r.m-F.from]; x.orders++;x.units+=r.q;x.sales+=r.s;x.profit+=r.pr;}
+  return a;
+}
+function renderKPIs(T){
+  const k=[
+    ['sales','Total Sales',fShort(T.sales),fINR(T.sales)],
+    ['profit','Total Profit',fShort(T.profit),fINR(T.profit)],
+    ['','Total Orders',fNum(T.orders),'orders placed'],
+    ['','Units Sold',fNum(T.units),'items across all orders'],
+    ['','Average Order Value',T.orders?fINR(T.sales/T.orders):'₹0','sales per order'],
+    ['','Profit Margin',T.sales?fPct(T.profit/T.sales):'0.0%','profit as a share of sales']];
+  $('#kpis').innerHTML=k.map(x=>`<div class="card kpi k4 ${x[0]}"><span class="k">${x[1]}</span><span class="v num">${x[2]}</span><span class="s num">${x[3]}</span></div>`).join('');
+}
+const TABS={sales:{name:'Sales & profit'},orders:{name:'Orders'},units:{name:'Units sold'},margin:{name:'Profit margin'}};
+function renderTrend(rows){
+  const M=monthly(rows); const labels=M.map((_,i)=>mLabel(F.from+i));
+  $('#trendTabs').innerHTML=Object.entries(TABS).map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${UI.tab===k}">${t.name}</button>`).join('');
+  $('#trendView').innerHTML=['chart','table'].map(v=>`<button type="button" data-v="${v}" aria-pressed="${UI.view===v}">${v==='chart'?'Chart':'Table'}</button>`).join('');
+  const defs={
+    sales:{series:[{name:'Sales',col:'--sales',vals:M.map(x=>x.sales)},{name:'Profit',col:'--profit',vals:M.map(x=>x.profit)}],ax:fAx,tip:fINR,hint:'Rupees per month (₹ L = lakh, ₹ Cr = crore)'},
+    orders:{series:[{name:'Orders',col:'--orders',vals:M.map(x=>x.orders)}],ax:fAx,tip:fNum,hint:'Number of orders per month'},
+    units:{series:[{name:'Units sold',col:'--units',vals:M.map(x=>x.units)}],ax:fAx,tip:fNum,hint:'Units sold per month'},
+    margin:{series:[{name:'Profit margin',col:'--margin',vals:M.map(x=>x.sales?x.profit/x.sales:0)}],ax:v=>(v*100).toFixed(0)+'%',tip:v=>(v*100).toFixed(1)+'%',hint:'Profit divided by sales, per month'}};
+  const d=defs[UI.tab]; $('#trendHint').textContent=d.hint;
+  $('#trendLegend').innerHTML=d.series.length>1?d.series.map(s=>`<span><i style="background:var(${s.col})"></i>${s.name}</span>`).join(''):'';
+  const chart=$('#trend'), table=$('#trendTable');
+  chart.hidden=UI.view!=='chart'; table.hidden=UI.view!=='table';
+  if(UI.view==='table'){
+    table.innerHTML=`<table><thead><tr><th class="nosort">Month</th><th class="nosort">Orders</th><th class="nosort">Units</th><th class="nosort">Sales</th><th class="nosort">Profit</th><th class="nosort">Margin</th></tr></thead><tbody>`+
+      M.map((x,i)=>`<tr><td>${mLong(F.from+i)}</td><td class="num">${fNum(x.orders)}</td><td class="num">${fNum(x.units)}</td><td class="num">${fINR(x.sales)}</td><td class="num">${fINR(x.profit)}</td><td class="num">${x.sales?fPct(x.profit/x.sales):'0.0%'}</td></tr>`).join('')+'</tbody></table>';
+  } else lineChart(chart,{labels,series:d.series,ax:d.ax,tip:d.tip});
+}
+$('#trendTabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(b){UI.tab=b.dataset.k;render();}});
+$('#trendView').addEventListener('click',e=>{const b=e.target.closest('button'); if(b){UI.view=b.dataset.v;render();}});
+
+function niceTicks(max,count=5){
+  if(max<=0) return [0,1];
+  const raw=max/count,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p;
+  const step=(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p; const t=[0]; let v=0;
+  while(v<max-1e-9){v+=step;t.push(+v.toFixed(8));} return t;
+}
+function lineChart(el,o){
+  const W=Math.max(300,el.clientWidth||700), H=W<520?260:310, n=o.labels.length;
+  const m={l:52,r:62,t:12,b:30}, iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const mx=Math.max(...o.series.flatMap(s=>s.vals)); const ticks=niceTicks(mx,5), top=ticks[ticks.length-1];
+  const X=i=>n===1?m.l+iw/2:m.l+i*iw/(n-1), Y=v=>m.t+ih-(v/top)*ih;
+  const step=Math.max(1,Math.ceil(n/Math.floor(iw/58)));
+  let g=ticks.map(t=>`<line class="gl" x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text class="ax" x="${m.l-8}" y="${Y(t)+4}" text-anchor="end">${o.ax(t)}</text>`).join('');
+  g+=o.labels.map((l,i)=>(i%step===0)?`<text class="ax" x="${X(i)}" y="${H-8}" text-anchor="middle">${l}</text>`:'').join('');
+  o.series.forEach(s=>{
+    const pts=s.vals.map((v,i)=>[X(i),Y(v)]);
+    if(n>1){
+      if(o.series.length===1) g+=`<path d="M${pts.map(p=>p.join(',')).join('L')}L${X(n-1)},${Y(0)}L${X(0)},${Y(0)}Z" style="fill:var(${s.col});opacity:.1"/>`;
+      g+=`<path d="M${pts.map(p=>p.join(',')).join('L')}" style="fill:none;stroke:var(${s.col});stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>`;
+    }
+    const e=pts[n-1]; g+=`<circle cx="${e[0]}" cy="${e[1]}" r="4" style="fill:var(${s.col});stroke:var(--surface);stroke-width:2"/>`;
+    if(o.series.length>1) g+=`<text class="ax" x="${e[0]+9}" y="${e[1]+4}" style="fill:var(${s.col});font-weight:600">${s.name}</text>`;
+  });
+  g+=`<line id="cross" y1="${m.t}" y2="${m.t+ih}" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;display:none"/>`+o.series.map((s,j)=>`<circle id="hd${j}" r="4.5" style="fill:var(${s.col});stroke:var(--surface);stroke-width:2;display:none"/>`).join('');
+  g+=`<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" id="hit"/>`;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly trend chart. A table view is available.">${g}</svg><div class="hov" id="hov"></div>`;
+  const svg=el.querySelector('svg'),hit=svg.querySelector('#hit'),hov=el.querySelector('#hov');
+  function move(ev){
+    const r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)*(W/r.width);
+    const i=Math.max(0,Math.min(n-1,n===1?0:Math.round((px-m.l)/iw*(n-1))));
+    const c=svg.querySelector('#cross'); c.setAttribute('x1',X(i));c.setAttribute('x2',X(i));c.style.display='';
+    o.series.forEach((s,j)=>{const d=svg.querySelector('#hd'+j);d.setAttribute('cx',X(i));d.setAttribute('cy',Y(s.vals[i]));d.style.display='';});
+    hov.innerHTML=`<div class="t">${mLong(F.from+i)}</div>`+o.series.map(s=>trow(s.name,o.tip(s.vals[i]),s.col)).join('');
+    hov.style.display='block'; const sx=X(i)*(r.width/W); const hw=hov.offsetWidth;
+    hov.style.left=(sx+hw+24>r.width?sx-hw-12:sx+12)+'px'; hov.style.top=Math.max(0,m.t)+'px';
+  }
+  hit.addEventListener('pointermove',move); hit.addEventListener('pointerdown',move);
+  hit.addEventListener('pointerleave',()=>{hov.style.display='none';svg.querySelector('#cross').style.display='none';o.series.forEach((s,j)=>svg.querySelector('#hd'+j).style.display='none');});
+}
+let lastTrendW=0; new ResizeObserver(()=>{const w=$('#trend').clientWidth; if(w&&Math.abs(w-lastTrendW)>2&&!$('#trend').hidden){lastTrendW=w; renderTrend(filtered());}}).observe($('#trend'));
+
+/* ---------- section 2 ---------- */
+function renderCategory(rows){
+  const A=agg(rows,r=>r.c,D.cats.length); const T=total(rows);
+  const mk=(el,key,col,fmt,share)=>{
+    const items=A.map((a,i)=>({key:i,label:D.cats[i],v:a[key],a})).filter(x=>x.a.orders>0).sort((x,y)=>y.v-x.v);
+    bars($(el),items.map(x=>({key:x.key,label:x.label,vals:[x.v],
+      tip:`<div class="t">${esc(x.label)}</div>`+trow('Sales',fINR(x.a.sales),'--sales')+trow('Profit',fINR(x.a.profit),'--profit')+trow('Units',fNum(x.a.units),'--units')+trow('Orders',fNum(x.a.orders))+trow('Margin',x.a.sales?fPct(x.a.profit/x.a.sales):'0.0%')+trow('Share of '+share,T[key]?fPct(x.v/T[key]):'0.0%')})),
+      {series:[{col}],fmt,key:'cat',sel:F.cat>=0?F.cat:null});};
+  mk('#catSales','sales','--sales',fShort,'sales'); mk('#catProfit','profit','--profit',fShort,'profit'); mk('#catUnits','units','--units',fNum,'units');
+  const P=agg(rows,r=>r.p,D.products.length).map((a,i)=>({a,i})).filter(x=>x.a.orders>0);
+  const top=[...P].sort((x,y)=>y.a.sales-x.a.sales).slice(0,10);
+  bars($('#topProd'),top.map(x=>({key:x.i,label:D.products[x.i][0],vals:[x.a.sales],
+    txt:[`${fShort(x.a.sales)} · ${fNum(x.a.units)} units · ${x.a.sales?fPct(x.a.profit/x.a.sales):'0.0%'}`],
+    tip:`<div class="t">${esc(D.products[x.i][0])}</div><div style="color:var(--muted);margin-bottom:4px">${esc(D.cats[D.products[x.i][1]])}</div>`+trow('Sales',fINR(x.a.sales),'--sales')+trow('Profit',fINR(x.a.profit),'--profit')+trow('Units',fNum(x.a.units),'--units')+trow('Orders',fNum(x.a.orders))})),
+    {series:[{col:'--sales'}],fmt:fShort});
+  const low=[...P].filter(x=>x.a.sales>0).sort((x,y)=>x.a.profit/x.a.sales-y.a.profit/y.a.sales).slice(0,5);
+  $('#lowProd').innerHTML=low.length?`<table><thead><tr><th class="nosort">Product</th><th class="nosort">Sales</th><th class="nosort">Margin</th></tr></thead><tbody>`+low.map(x=>`<tr><td title="${esc(D.cats[D.products[x.i][1]])}">${esc(D.products[x.i][0])}</td><td class="num">${fShort(x.a.sales)}</td><td class="num">${fPct(x.a.profit/x.a.sales)}</td></tr>`).join('')+'</tbody></table>':'<div class="empty">No data</div>';
+  // insight
+  if(!T.orders){$('#in2').innerHTML='';return;}
+  const cs=A.map((a,i)=>({i,a})).filter(x=>x.a.orders>0);
+  const bySales=[...cs].sort((x,y)=>y.a.sales-x.a.sales)[0], byM=[...cs].filter(x=>x.a.sales>0).sort((x,y)=>y.a.profit/y.a.sales-x.a.profit/x.a.sales)[0];
+  let t=`<b>What this shows.</b> <b>${esc(D.cats[bySales.i])}</b> is the largest category with ${fShort(bySales.a.sales)} in sales (${fPct(bySales.a.sales/T.sales)} of the total)`;
+  if(byM) t+=`, and <b>${esc(D.cats[byM.i])}</b> earns the best profit margin at ${fPct(byM.a.profit/byM.a.sales)}`;
+  t+='.';
+  if(low.length) t+=` The product with the lowest margin is <b>${esc(D.products[low[0].i][0])}</b> at ${fPct(low[0].a.profit/low[0].a.sales)}.`;
+  $('#in2').innerHTML=t;
+}
+
+/* ---------- section 3 ---------- */
+function renderStatus(rows){
+  const T=total(rows), A=agg(rows,r=>r.st,D.statuses.length);
+  const order=[ST.del,ST.shp,ST.ret,ST.can];
+  const tiles=order.map(i=>`<div class="card kpi stt c3" style="--c:var(${STCOL[i]})"><span class="k">${D.statuses[i]} orders</span><span class="v num">${fNum(A[i].orders)}</span><span class="s num">${T.orders?fPct(A[i].orders/T.orders):'0.0%'} of orders · ${fShort(A[i].sales)}</span></div>`).join('');
+  const lost=T.salesLost;
+  const tiles2=`<div class="card kpi k4"><span class="k">Return rate</span><span class="v num">${T.orders?fPct(T.ret/T.orders):'0.0%'}</span><span class="s num">${fNum(T.ret)} returned of ${fNum(T.orders)} orders</span></div>
+   <div class="card kpi k4"><span class="k">Cancellation rate</span><span class="v num">${T.orders?fPct(T.can/T.orders):'0.0%'}</span><span class="s num">${fNum(T.can)} cancelled of ${fNum(T.orders)} orders</span></div>
+   <div class="card kpi k4"><span class="k">Revenue lost</span><span class="v num" style="color:var(--st-cancelled)">${fShort(lost)}</span><span class="s num">${T.sales?fPct(lost/T.sales):'0.0%'} of total sales (returned + cancelled)</span></div>`;
+  $('#statusTiles').innerHTML=tiles+tiles2;
+  donut($('#donut'),A,T,order);
+  $('#donutLeg').innerHTML=order.map(i=>`<div class="row ${F.status===i?'sel':''}" data-i="${i}"><i style="background:var(${STCOL[i]})"></i><span>${D.statuses[i]}</span><span class="num">${fNum(A[i].orders)}</span><span class="pc num">${T.orders?fPct(A[i].orders/T.orders):'0.0%'}</span></div>`).join('');
+  $('#donutLeg').onclick=e=>{const r=e.target.closest('.row'); if(r)toggle('status',+r.dataset.i);};
+  const C=agg(rows,r=>r.c,D.cats.length).map((a,i)=>({a,i})).filter(x=>x.a.orders>0).sort((x,y)=>(y.a.ret+y.a.can)-(x.a.ret+x.a.can));
+  bars($('#lossCat'),C.map(x=>({key:x.i,label:D.cats[x.i],vals:[x.a.ret,x.a.can],
+    txt:[`${fNum(x.a.ret)} (${fPct(x.a.ret/x.a.orders)})`,`${fNum(x.a.can)} (${fPct(x.a.can/x.a.orders)})`],
+    tip:`<div class="t">${esc(D.cats[x.i])}</div>`+trow('Returned',fNum(x.a.ret)+' orders','--st-returned')+trow('Cancelled',fNum(x.a.can)+' orders','--st-cancelled')+trow('Orders in category',fNum(x.a.orders))+trow('Revenue lost',fINR(x.a.salesLost))})),
+    {series:[{col:'--st-returned'},{col:'--st-cancelled'}],fmt:fNum,key:'cat',sel:F.cat>=0?F.cat:null});
+  if(!T.orders){$('#in3').innerHTML='';return;}
+  const worst=[...C].sort((x,y)=>(y.a.ret+y.a.can)/y.a.orders-(x.a.ret+x.a.can)/x.a.orders)[0];
+  $('#in3').innerHTML=`<b>What this shows.</b> ${fPct(T.del/T.orders)} of orders are delivered and ${fPct(T.shp/T.orders)} are still on the way. Returns (${fPct(T.ret/T.orders)}) and cancellations (${fPct(T.can/T.orders)}) together put <b>${fShort(lost)}</b> of sales value at risk, which is ${T.sales?fPct(lost/T.sales):'0%'} of total sales. `+
+    (C.length>1?`<b>${esc(D.cats[worst.i])}</b> has the highest loss rate at ${fPct((worst.a.ret+worst.a.can)/worst.a.orders)} of its orders.`:'');
+}
+function donut(el,A,T,order){
+  const S=180,c=90,R=84,r=54; const segs=order.filter(i=>A[i].orders>0);
+  let ang=-Math.PI/2, g='';
+  const pt=(a,rad)=>[c+rad*Math.cos(a),c+rad*Math.sin(a)];
+  if(!segs.length){g=`<circle cx="${c}" cy="${c}" r="${(R+r)/2}" style="fill:none;stroke:var(--grid);stroke-width:${R-r}"/>`;}
+  else if(segs.length===1){const i=segs[0];g=`<circle data-i="${i}" cx="${c}" cy="${c}" r="${(R+r)/2}" style="fill:none;stroke:var(${STCOL[i]});stroke-width:${R-r}"/>`;}
+  else segs.forEach(i=>{
+    const frac=A[i].orders/T.orders, gap=0.018, a0=ang+gap/2, a1=ang+frac*2*Math.PI-gap/2; ang+=frac*2*Math.PI; const big=a1-a0>Math.PI?1:0;
+    const p0=pt(a0,R),p1=pt(a1,R),p2=pt(a1,r),p3=pt(a0,r);
+    g+=`<path data-i="${i}" d="M${p0}A${R},${R} 0 ${big} 1 ${p1}L${p2}A${r},${r} 0 ${big} 0 ${p3}Z" style="fill:var(${STCOL[i]});cursor:pointer;${F.status>=0&&F.status!==i?'opacity:.35':''}"/>`;});
+  g+=`<text x="${c}" y="${c-2}" text-anchor="middle" style="fill:var(--ink);font-size:22px;font-weight:700;font-family:var(--font)">${fNum(T.orders)}</text><text x="${c}" y="${c+16}" text-anchor="middle" class="ax">orders</text>`;
+  el.innerHTML=`<svg viewBox="0 0 ${S} ${S}" role="img" aria-label="Orders by status donut chart">${g}</svg>`;
+  el.querySelector('svg').addEventListener('mousemove',e=>{const p=e.target.closest('[data-i]'); if(!p){hideTip();return;} const i=+p.dataset.i;
+    showTip(e,`<div class="t">${D.statuses[i]}</div>`+trow('Orders',fNum(A[i].orders),STCOL[i])+trow('Share',fPct(A[i].orders/T.orders))+trow('Sales value',fINR(A[i].sales))+trow('Profit',fINR(A[i].profit)));});
+  el.querySelector('svg').addEventListener('mouseleave',hideTip);
+  el.querySelector('svg').addEventListener('click',e=>{const p=e.target.closest('[data-i]'); if(p){hideTip();toggle('status',+p.dataset.i);}});
+}
+
+/* ---------- section 4 ---------- */
+function renderPayFul(rows){
+  const T=total(rows);
+  const mk=(el,key,list,k)=>{
+    const A=agg(rows,r=>r[key],list.length).map((a,i)=>({a,i})).filter(x=>x.a.orders>0).sort((x,y)=>y.a.sales-x.a.sales);
+    bars($(el),A.map(x=>({key:x.i,label:list[x.i],vals:[x.a.sales,x.a.profit],txt:[fShort(x.a.sales),fShort(x.a.profit)],
+      tip:`<div class="t">${esc(list[x.i])}</div>`+trow('Sales',fINR(x.a.sales),'--sales')+trow('Profit',fINR(x.a.profit),'--profit')+trow('Orders',fNum(x.a.orders))+trow('Share of sales',T.sales?fPct(x.a.sales/T.sales):'0.0%')+trow('Margin',x.a.sales?fPct(x.a.profit/x.a.sales):'0.0%')})),
+      {series:[{col:'--sales'},{col:'--profit'}],fmt:fShort,key:k,sel:F[k]>=0?F[k]:null});
+    return A;};
+  const P=mk('#payBars','pay',D.pays,'pay'), L=mk('#fulBars','f',D.fuls,'ful');
+  return {P,L,T};
+}
+const TILES={'Delhi':[2,0,'DL'],'Rajasthan':[1,1,'RJ'],'Uttar Pradesh':[3,1,'UP'],'Gujarat':[0,2,'GJ'],'West Bengal':[5,2,'WB'],
+  'Maharashtra':[1,3,'MH'],'Telangana':[3,3,'TG'],'Karnataka':[2,4,'KA'],'Kerala':[1,5,'KL'],'Tamil Nadu':[2,5,'TN']};
+const hex=h=>{h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16));};
+function mix(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
+const MET={sales:{n:'Sales',f:fShort,col:'--sales',k:'sales'},profit:{n:'Profit',f:fShort,col:'--profit',k:'profit'},orders:{n:'Orders',f:fNum,col:'--orders',k:'orders'}};
+function renderGeo(rows){
+  const A=agg(rows,r=>r.ss,D.states.length), T=total(rows), met=MET[UI.mapMetric];
+  $('#mapTabs').innerHTML=Object.entries(MET).map(([k,m])=>`<button type="button" data-k="${k}" aria-pressed="${UI.mapMetric===k}">${m.n}</button>`).join('');
+  const vals=A.map(a=>a[met.k]), mx=Math.max(...vals,1e-9), mn=Math.min(...vals.filter((_,i)=>A[i].orders>0),0);
+  const lo=hex(cssv('--seq-lo')),hi=hex(cssv('--seq-hi'));
+  const cells=[];
+  D.states.forEach((s,i)=>{const t=TILES[s]; cells.push({s,i,t});});
+  let html='';
+  const pos={}; cells.forEach(c=>{ if(c.t) pos[c.t[1]+','+c.t[0]]=c; });
+  for(let r=0;r<6;r++)for(let c=0;c<6;c++){
+    const cell=pos[r+','+c];
+    if(!cell){html+=`<div class="tile off" aria-hidden="true"></div>`;continue;}
+    const v=A[cell.i][met.k], has=A[cell.i].orders>0, tt=has?(mx===mn?1:(v-mn)/(mx-mn)):0, rgb=mix(lo,hi,tt);
+    const lum=(0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2])/255;
+    html+=`<div class="tile ${F.state===cell.i?'sel':''}" data-i="${cell.i}" style="background:${has?`rgb(${rgb})`:'transparent'};${has?'':'border:1px dashed var(--line);'}color:${lum>0.6?'#0b1420':'#ffffff'}"><span class="ab">${cell.t[2]}</span><span class="tv num">${has?met.f(v):'–'}</span></div>`;
+  }
+  $('#mapgrid').innerHTML=html;
+  $('#rampLo').textContent='Lower '+met.n.toLowerCase();$('#rampHi').textContent='Higher';
+  const mg=$('#mapgrid');
+  mg.onmousemove=e=>{const t=e.target.closest('.tile[data-i]'); if(!t){hideTip();return;} const i=+t.dataset.i,a=A[i];
+    showTip(e,`<div class="t">${esc(D.states[i])}</div>`+trow('Sales',fINR(a.sales),'--sales')+trow('Profit',fINR(a.profit),'--profit')+trow('Orders',fNum(a.orders))+trow('Share of sales',T.sales?fPct(a.sales/T.sales):'0.0%'));};
+  mg.onmouseleave=hideTip; mg.onclick=e=>{const t=e.target.closest('.tile[data-i]'); if(t){hideTip();toggle('state',+t.dataset.i);}};
+  const items=A.map((a,i)=>({a,i})).filter(x=>x.a.orders>0).sort((x,y)=>y.a[met.k]-x.a[met.k]);
+  $('#stateRankTitle').textContent=met.n+' by state';
+  bars($('#stateBars'),items.map(x=>({key:x.i,label:D.states[x.i],vals:[x.a[met.k]],
+    txt:[`${met.f(x.a[met.k])} · ${(T[met.k]?x.a[met.k]/T[met.k]*100:0).toFixed(1)}%`],
+    tip:`<div class="t">${esc(D.states[x.i])}</div>`+trow('Sales',fINR(x.a.sales),'--sales')+trow('Profit',fINR(x.a.profit),'--profit')+trow('Orders',fNum(x.a.orders))})),
+    {series:[{col:met.col}],fmt:met.f,key:'state',sel:F.state>=0?F.state:null});
+  // table
+  const rowsT=items.map(x=>({name:D.states[x.i],orders:x.a.orders,sales:x.a.sales,profit:x.a.profit,margin:x.a.sales?x.a.profit/x.a.sales:0,aov:x.a.orders?x.a.sales/x.a.orders:0}));
+  const sk=UI.stateSort; rowsT.sort((x,y)=>sk.k==='name'?sk.dir*(x.name<y.name?1:-1)*-1:sk.dir*(x[sk.k]-y[sk.k]));
+  const cols=[['name','State'],['orders','Orders'],['sales','Sales'],['profit','Profit'],['margin','Margin'],['aov','Avg order value']];
+  $('#stateTable').innerHTML=`<table><thead><tr>${cols.map(c=>`<th data-k="${c[0]}">${c[1]}${sk.k===c[0]?(sk.dir<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>`+
+    rowsT.map(r=>`<tr><td>${esc(r.name)}</td><td class="num">${fNum(r.orders)}</td><td class="num">${fINR(r.sales)}</td><td class="num">${fINR(r.profit)}</td><td class="num">${fPct(r.margin)}</td><td class="num">${fINR(r.aov)}</td></tr>`).join('')+
+    `<tr style="font-weight:600"><td>Total</td><td class="num">${fNum(T.orders)}</td><td class="num">${fINR(T.sales)}</td><td class="num">${fINR(T.profit)}</td><td class="num">${T.sales?fPct(T.profit/T.sales):'0.0%'}</td><td class="num">${T.orders?fINR(T.sales/T.orders):'₹0'}</td></tr></tbody></table>`;
+  return {items,T};
+}
+$('#mapTabs').addEventListener('click',e=>{const b=e.target.closest('button'); if(b){UI.mapMetric=b.dataset.k;render();}});
+$('#stateTable').addEventListener('click',e=>{const th=e.target.closest('th'); if(!th)return; const k=th.dataset.k; UI.stateSort=UI.stateSort.k===k?{k,dir:-UI.stateSort.dir}:{k,dir:k==='name'?1:-1}; render();});
+
+function renderInsights(rows,pf,geo){
+  const T=pf.T; if(!T.orders){$('#in1').innerHTML='';$('#in4').innerHTML='';return;}
+  // section 1
+  const M=monthly(rows), len=M.length; let t1;
+  if(len>=2){
+    const n=Math.min(12,Math.floor(len/2)), sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
+    const L=M.slice(len-n),Pv=M.slice(len-2*n,len-n);
+    const ch=(a,b)=>b?((a-b)/b*100):0, sgn=v=>(v>=0?'up ':'down ')+Math.abs(v).toFixed(1)+'%';
+    const best=M.reduce((b,x,i)=>x.sales>M[b].sales?i:b,0);
+    t1=`<b>What this shows.</b> Over the last ${n} month${n>1?'s':''} in view, sales were ${fShort(sum(L,'sales'))} (${sgn(ch(sum(L,'sales'),sum(Pv,'sales')))} on the ${n} before) and profit was ${fShort(sum(L,'profit'))} (${sgn(ch(sum(L,'profit'),sum(Pv,'profit')))}). The strongest month for sales was <b>${mLong(F.from+best)}</b> at ${fShort(M[best].sales)}.`;
+  } else t1=`<b>What this shows.</b> Only one month is selected: ${fShort(T.sales)} in sales and ${fShort(T.profit)} in profit. Widen the period to see a trend.`;
+  $('#in1').innerHTML=t1;
+  // section 4
+  const topP=pf.P[0], topL=pf.L[0], topS=geo.items[0];
+  const top3=geo.items.slice(0,3).reduce((s,x)=>s+x.a.sales,0);
+  $('#in4').innerHTML=`<b>What this shows.</b> <b>${esc(D.pays[topP.i])}</b> brings the most sales among payment methods (${fPct(topP.a.sales/T.sales)}), and <b>${esc(D.fuls[topL.i])}</b> is the main fulfilment route (${fPct(topL.a.sales/T.sales)} of sales). `+
+    `<b>${esc(D.states[topS.i])}</b> is the largest market with ${fShort(topS.a.sales)} in sales (${fPct(topS.a.sales/T.sales)})`+(geo.items.length>=3?`, and the top three states together make up ${fPct(top3/T.sales)} of sales.`:'.');
+}
+
+/* ---------- render ---------- */
+function render(){
+  const rows=filtered(), T=total(rows);
+  $('#nodata').style.display=T.orders?'none':'block'; $('#main').style.display=T.orders?'':'none';
+  if(!T.orders) return;
+  renderKPIs(T); renderTrend(rows); renderCategory(rows); renderStatus(rows);
+  const pf=renderPayFul(rows), geo=renderGeo(rows); renderInsights(rows,pf,geo);
+}
+$('#caption').textContent=`Orders from ${D.meta.first} to ${D.meta.last} · ${INR.format(D.rows.length)} orders · ${D.meta.source}`;
+$('#footData').textContent=`${INR.format(D.rows.length)} orders from ${D.meta.source}, dated ${D.meta.first} to ${D.meta.last}, across ${D.cats.length} categories, ${D.products.length} products and ${D.states.length} states. No rows were removed or altered; the file has no missing values or duplicate Order IDs.`;
+window.DASH={F,UI,filtered,agg,total,sync,render,ROWS,D};
+sync(); render();
+})();
+</script>
