@@ -18,7 +18,7 @@ An interactive management dashboard built from `Amazon_Sales_Data_India.xlsx` (1
 1. Install Python 3.9 or newer from python.org.
 2. Open a terminal in the project folder.
 3. Install the libraries: `pip install pandas openpyxl`
-4. Run: `python build_dashboard.py`
+4. Run: `python build_dashboard.py Amazon_Sales_Data_India.xlsx`
 5. The terminal prints a data-quality check, then `Built Amazon_India_Dashboard.html`. Open that file.
 
 To use another Excel file with the same columns: `python build_dashboard.py path/to/file.xlsx`
